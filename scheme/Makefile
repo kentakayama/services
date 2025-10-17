@@ -4,6 +4,7 @@
 SUBDIR := common
 SUBDIR += arm-cca
 SUBDIR += riot
+SUBDIR += generic-eat
 SUBDIR += psa-iot
 SUBDIR += tpm-enacttrust
 SUBDIR += parsec-tpm
