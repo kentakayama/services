@@ -6,9 +6,9 @@ const SchemeName = "generic-eat"
 
 var EndorsementMediaTypes = []string{
 	// Unsigned CoRIM profile
-	`application/corim-unsigned+cbor`,
+	`application/corim-unsigned+cbor; profile=http://example.com`,
 	// Signed CoRIM profile
-	`application/rim+cose`,
+	`application/rim+cose; profile=http://example.com`,
 }
 
 var EvidenceMediaTypes = []string{
