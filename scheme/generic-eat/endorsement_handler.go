@@ -20,7 +20,7 @@ func (o EndorsementHandler) Close() error {
 }
 
 func (o EndorsementHandler) GetName() string {
-	return "corim (NO profile)"
+	return "corim (Sample profile)"
 }
 
 func (o EndorsementHandler) GetAttestationScheme() string {
