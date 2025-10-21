@@ -42,16 +42,16 @@ func (s StoreHandler) GetTrustAnchorIDs(token *proto.AttestationToken) ([]string
 	if err != nil {
 		return nil, fmt.Errorf("failed CBOR decoding for payload: %w", err)
 	}
-	uuidValue, ok := claims[256].([]byte)
+	u, ok := claims[256].([]byte)
 	if !ok {
 		return nil, fmt.Errorf("failed to get ueid")
 	}
-	u, err := uuid.FromBytes(uuidValue)
+	uuidValue, err := uuid.FromBytes(u)
 	if err != nil {
 		return nil, fmt.Errorf("generic-eat requires the ueid value as UUID")
 	}
 	// TODO: how to get tenantID from token?
-	lookupKey, err := s.keyToLookupKey("0", u.String(), "ta")
+	lookupKey, err := s.keyToLookupKey("0", uuidValue.String(), "ta")
 	if err != nil {
 		return nil, err
 	}
@@ -63,27 +63,33 @@ func (s StoreHandler) GetRefValueIDs(
 	trustAnchors []string,
 	claims map[string]interface{},
 ) ([]string, error) {
-	var instanceID string
+	var lookupKeys []string
 	// TODO: should iterate trustAnchors?
-	trustAnchor := trustAnchors[0]
-	var ta map[string]interface{}
-	err := json.Unmarshal([]byte(trustAnchor), &ta)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse trustAnchor as JSON: %s", trustAnchor)
+	for _, trustAnchor := range trustAnchors {
+		var ta map[string]interface{}
+		err := json.Unmarshal([]byte(trustAnchor), &ta)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse trustAnchor as JSON: %s", trustAnchor)
+		}
+		attr, ok := ta["attributes"].(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("failed to get attributes: %#v", ta)
+		}
+		instanceID, ok := attr["instance-id"].(string)
+		if !ok {
+			return nil, fmt.Errorf("failed to get instance-id: %#v", attr)
+		}
+		lookupKey, err := s.keyToLookupKey(tenantID, instanceID, "refval")
+		if err != nil {
+			return nil, err
+		}
+		lookupKeys = append(lookupKeys, lookupKey)
 	}
-	attr, ok := ta["attributes"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("failed to get attributes: %#v", ta)
+
+	if len(lookupKeys) == 0 {
+		return nil, fmt.Errorf("no trust anchor found")
 	}
-	instanceID, ok = attr["instance-id"].(string)
-	if !ok {
-		return nil, fmt.Errorf("failed to get instance-id: %#v", attr)
-	}
-	lookupKey, err := s.keyToLookupKey(tenantID, instanceID, "refval")
-	if err != nil {
-		return nil, err
-	}
-	return []string{lookupKey}, nil
+	return lookupKeys, nil
 }
 
 func (s StoreHandler) SynthKeysFromRefValue(

@@ -4,10 +4,18 @@
 package generic_eat
 
 import (
+	"crypto/ecdsa"
+	"encoding/json"
+	"fmt"
+
+	"github.com/fxamacker/cbor/v2"
+	"github.com/google/uuid"
 	"github.com/veraison/ear"
+	"github.com/veraison/go-cose"
 
 	"github.com/veraison/services/handler"
 	"github.com/veraison/services/proto"
+	"github.com/veraison/services/scheme/common"
 )
 
 type EvidenceHandler struct {
@@ -62,29 +70,75 @@ func (s EvidenceHandler) ValidateEvidenceIntegrity(
 	trustAnchors []string,
 	endorsements []string,
 ) error {
-	/*
-		pemKey := "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEMKBCTNIcKUSDii11ySs3526iDZ8A\niTo7Tu6KPAqv7D7gS2XpJFbZiItSs3m9+9Ue6GnvHw/GW2ZZaVtszggXIw==\n-----END PUBLIC KEY-----"
-		pubKey, err := common.DecodePemSubjectPubKeyInfo([]byte(pemKey))
-		if err != nil {
-			return err
-		}
-		ecdsaPubKey, ok := pubKey.(*ecdsa.PublicKey)
-		if !ok {
-			return handler.BadEvidence(fmt.Errorf("could not extract EC public key; got [%T]: %v", pubKey, err))
-		}
-		verifier, err := cose.NewVerifier(cose.AlgorithmES256, ecdsaPubKey)
-		if err != nil {
-			return handler.BadEvidence(fmt.Errorf("could not construct verifier for ES256: %v", err))
-		}
+	/* extract uuid-typed ueid from token*/
+	message := cose.NewSign1Message()
+	err := message.UnmarshalCBOR(token.Data)
+	if err != nil {
+		return fmt.Errorf("failed CBOR decoding for CWT: %w", err)
+	}
+	var claims map[int]interface{}
+	err = cbor.Unmarshal(message.Payload, &claims)
+	if err != nil {
+		return fmt.Errorf("failed CBOR decoding for payload: %w", err)
+	}
+	u, ok := claims[256].([]byte)
+	if !ok {
+		return fmt.Errorf("failed to get ueid")
+	}
+	uuidValue, err := uuid.FromBytes(u)
+	if err != nil {
+		return fmt.Errorf("generic-eat requires the ueid value as UUID")
+	}
 
-		var msg cose.Sign1Message
-		if err = msg.UnmarshalCBOR(token.Data); err != nil {
-			return handler.BadEvidence(fmt.Errorf("could not unmarshal cbor: %v", err))
+	/* find trust anchor */
+	akPub := func() string {
+		for _, trustAnchor := range trustAnchors {
+			var ta map[string]interface{}
+			err = json.Unmarshal([]byte(trustAnchor), &ta)
+			if err != nil {
+				continue
+			}
+			attr, ok := ta["attributes"].(map[string]interface{})
+			if !ok {
+				continue
+			}
+			instanceID, ok := attr["instance-id"].(string)
+			if !ok {
+				continue
+			}
+			if uuidValue.String() == instanceID {
+				akPub, ok := attr["ak-pub"].(string)
+				if !ok {
+					continue
+				}
+				return akPub
+			}
 		}
-		if err = msg.Verify(nil, verifier); err != nil {
-			return handler.BadEvidence(fmt.Errorf("could not verifies with hard coded key: %v", err))
-		}
-	*/
+		return ""
+	}()
+	if akPub == "" {
+		return handler.BadEvidence(fmt.Errorf("no trust anchor found for ueid: %s", uuidValue.String()))
+	}
+
+	/* verify the signature in the evidence with akPub */
+	pubKey, err := common.DecodePemSubjectPubKeyInfo([]byte(akPub))
+	if err != nil {
+		return err
+	}
+	ecdsaPubKey, ok := pubKey.(*ecdsa.PublicKey)
+	if !ok {
+		return handler.BadEvidence(fmt.Errorf("could not extract EC public key; got [%T]: %v", pubKey, err))
+	}
+	verifier, err := cose.NewVerifier(cose.AlgorithmES256, ecdsaPubKey)
+	if err != nil {
+		return handler.BadEvidence(fmt.Errorf("could not construct verifier for ES256: %v", err))
+	}
+
+	err = message.Verify(nil, verifier)
+	if err != nil {
+		return handler.BadEvidence(fmt.Errorf("could not verifies with hard coded key: %v", err))
+	}
+
 	return nil
 }
 
