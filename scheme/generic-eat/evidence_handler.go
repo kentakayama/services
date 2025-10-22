@@ -100,47 +100,6 @@ func (s EvidenceHandler) ExtractClaims(
 		case 8:
 			// TODO?: do not handle
 			claims["cnf"] = base64.StdEncoding.EncodeToString(claim)
-			// {?1: COSE_Key, ?3: bstr / kid /}
-			// cnf := make(map[string]interface{})
-			// cnfValue, ok := claim.(map[int]interface{})
-			// if !ok {
-			// 	return nil, handler.BadEvidence(fmt.Errorf("invalid type of cnf claim: %#v", claim))
-			// }
-			// if cnfValue[1] != nil {
-			// 	coseKeyValue, ok := cnfValue[1].(map[int]interface{})
-			// 	if !ok {
-			// 		return nil, handler.BadEvidence(fmt.Errorf("invalid type of COSE_Key in cnf claim: %#v", cnfValue[1]))
-			// 	}
-			// 	coseKey := make(map[string]interface{})
-			// 	if coseKeyValue[1] != nil {
-			// 		kty, ok := coseKeyValue[1].(int)
-			// 		if !ok {
-			// 			return nil, handler.BadEvidence(fmt.Errorf("invalid type of kid in COSE_Key in cnf claim: %#v", coseKeyValue[1]))
-			// 		}
-			// 		if kty != 2 {
-			// 			return nil, handler.BadEvidence(fmt.Errorf("generic-eat supports only EC key"))
-			// 		}
-			// 		coseKey["kty"] = kty
-			// 	}
-			// 	if coseKeyValue[-1] != nil {
-			// 		crv, ok := coseKeyValue[-1].(int)
-			// 		if !ok {
-			// 			return nil, handler.BadEvidence(fmt.Errorf("invalid type of crv in COSE_Key in cnf claim: %#v", coseKeyValue[-1]))
-			// 		}
-			// 		coseKey["crv"] = crv
-			// 	}
-			// 	if coseKeyValue[-2] != nil {
-			// 		coseKey["x"] = base64.StdEncoding.EncodeToString(coseKeyValue[-2].([]byte))
-			// 	}
-			// 	if coseKeyValue[-3] != nil {
-			// 		coseKey["y"] = base64.StdEncoding.EncodeToString(coseKeyValue[-3].([]byte))
-			// 	}
-			// 	cnf["COSE_Key"] = coseKey
-			// }
-			// if cnfValue[3] != nil {
-			// 	cnf["kid"] = base64.StdEncoding.EncodeToString(cnfValue[3].([]byte))
-			// }
-			// claims["cnf"] = cnf
 		case 10:
 			var eatNonce []byte
 			if err := cbor.Unmarshal(claim, &eatNonce); err != nil {
