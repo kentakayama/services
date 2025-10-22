@@ -15,6 +15,19 @@ import (
 	"github.com/veraison/psatoken"
 )
 
+type VersionType struct {
+	Version string
+	/*
+	 * -1: not specified
+	 * 1: multipartnumeric
+	 * 2: multipartnumeric-suffix
+	 * 3: alphanumeric
+	 * 4: decimal
+	 * 16384: semver
+	 */
+	Scheme uint64
+}
+
 type CcaPlatformWrapper struct {
 	C platform.IClaims
 }
