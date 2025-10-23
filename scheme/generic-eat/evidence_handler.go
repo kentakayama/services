@@ -34,6 +34,31 @@ func (s EvidenceHandler) GetSupportedMediaTypes() []string {
 	return EvidenceMediaTypes
 }
 
+func (s EvidenceHandler) ExtractVersion(
+	value []interface{},
+) (*common.VersionType, error) {
+	if len(value) < 1 || 2 < len(value) {
+		return nil, fmt.Errorf("invalid length for type version: %#v", value)
+	}
+
+	var h common.VersionType
+	ok := false
+	h.Version, ok = value[0].(string)
+	if !ok {
+		return nil, fmt.Errorf("invalid type of version: %#v (%T)", value[0], value[0])
+	}
+	if len(value) == 2 {
+		h.Scheme, ok = value[1].(uint64)
+		if !ok {
+			return nil, fmt.Errorf("invalid type of scheme in value claim: %#v (%T)", value[1], value[1])
+		}
+	} else {
+		h.Scheme = 0 // not specified
+	}
+
+	return &h, nil
+}
+
 func (s EvidenceHandler) ExtractClaims(
 	token *proto.AttestationToken,
 	trustAnchors []string,
@@ -136,22 +161,9 @@ func (s EvidenceHandler) ExtractClaims(
 			if err := cbor.Unmarshal(claim, &hwversion); err != nil {
 				return nil, handler.BadEvidence(fmt.Errorf("invalid type of hwversion claim: %#v", claim))
 			}
-			if len(hwversion) < 1 || 2 < len(hwversion) {
-				return nil, handler.BadEvidence(fmt.Errorf("invalid length of hwversion claim: %#v", claim))
-			}
-			var h common.VersionType
-			ok := false
-			h.Version, ok = hwversion[0].(string)
-			if !ok {
-				return nil, handler.BadEvidence(fmt.Errorf("invalid type of version in hwversion claim: %#v", hwversion[0]))
-			}
-			if len(hwversion) == 2 {
-				h.Scheme, ok = hwversion[1].(uint64)
-				if !ok {
-					return nil, handler.BadEvidence(fmt.Errorf("invalid type of scheme in hwversion claim: %#v", hwversion[1]))
-				}
-			} else {
-				h.Scheme = 0
+			h, err := s.ExtractVersion(hwversion)
+			if err != nil {
+				return nil, handler.BadEvidence(fmt.Errorf("invalid value for hwversion claim: %w", err))
 			}
 			claims["hwversion"] = h
 		case 261:
@@ -182,7 +194,64 @@ func (s EvidenceHandler) ExtractClaims(
 		case 272:
 			claims["manifests"] = claim
 		case 273:
-			claims["measurements"] = claim
+			var measurements []common.Measurement
+			if err := cbor.Unmarshal(claim, &measurements); err != nil {
+				return nil, handler.BadEvidence(fmt.Errorf("invalid type of measurements claim: %#v, %w", claim, err))
+			}
+			mcs := make([]common.MeasuredComponent, 0)
+			for _, m := range measurements {
+				switch m.Type {
+				case 600:
+					// TBD1, application/measured-component+cbor
+					var mc common.MeasuredComponent
+					var kv map[int]cbor.RawMessage
+					if err := cbor.Unmarshal(m.Format, &kv); err != nil {
+						return nil, handler.BadEvidence(fmt.Errorf("not measured-component: %#v, %w", m.Format, err))
+					}
+					for k, v := range kv {
+						switch k {
+						case 1: // ID
+							var id []interface{}
+							if err := cbor.Unmarshal(v, &id); err != nil {
+								return nil, handler.BadEvidence(fmt.Errorf("not measured-component.component-id: %#v, %w", m.Format, err))
+							}
+							if len(id) < 1 || 2 < len(id) {
+								return nil, handler.BadEvidence(fmt.Errorf("length of component-id must be 1 or 2, not %d", len(id)))
+							}
+							mcName, ok := id[0].(string)
+							if !ok {
+								return nil, handler.BadEvidence(fmt.Errorf("invalid type of measured-component.component-id.name: %#v, %w", m.Format, err))
+							}
+							mc.Name = mcName
+							if len(id) == 2 {
+								// component-id.version exists
+								mcVersion, ok := id[1].([]interface{})
+								if !ok {
+									return nil, handler.BadEvidence(fmt.Errorf("invalid value for measured-component.component-id.version %#v (%T)", id[1], id[1]))
+								}
+								v, err := s.ExtractVersion(mcVersion)
+								if err != nil {
+									return nil, handler.BadEvidence(fmt.Errorf("invalid value for measured-component.component-id.version: %w", err))
+								}
+								mc.Version = *v
+							} else {
+								mc.Version.Version = ""
+								mc.Version.Scheme = 0
+							}
+						case 2: // measurement
+							var digest common.Digest
+							if err := cbor.Unmarshal(v, &digest); err != nil {
+								return nil, handler.BadEvidence(fmt.Errorf("not measured-component.measurement: %#v, %w", m.Format, err))
+							}
+							mc.Measurement = digest
+						}
+					}
+					// TODO: check required members for measured-component
+					mcs = append(mcs, mc)
+				}
+			}
+			claims["measurements"] = mcs
+			// claims["measurements"] = claim
 		case 274:
 			claims["measres"] = claim
 		case 275:
@@ -300,20 +369,75 @@ func (s EvidenceHandler) AppraiseEvidence(
 		if attr["instance-id"] == evidence["ueid"] {
 			/* this set of Reference Values is for this evidence */
 			*result.Submods[SchemeName].Status = ear.TrustTierWarning
+			allReferenceValueOK := true
 
-			// return nil, fmt.Errorf("ok version is %#v, hwversion is %#v", attr["version"], evidence["hwversion"])
-			version, ok := attr["version"].(map[string]interface{})
+			// extract measured-component from measurements
+			// XXX: only MeasuredComponents are in evidence["measurements"] due to poor implementation
+			mcs, ok := evidence["measurements"].([]interface{})
 			if !ok {
-				return result, fmt.Errorf("cannot get reference value version: %#v", attr["version"])
+				return result, handler.BadEvidence(fmt.Errorf("cannot get evidence measurements: %#v %T", evidence["measurements"], evidence["measurements"]))
 			}
-			hwversion, ok := evidence["hwversion"].(map[string]interface{})
+			mc, ok := mcs[0].(map[string]interface{})
 			if !ok {
-				return result, fmt.Errorf("cannot get evidence hwversion: %#v", evidence["hwversion"])
+				return result, handler.BadEvidence(fmt.Errorf("cannot get evidence measurements[0]: %#v %T", mcs[0], mcs[0]))
 			}
-			if version["value"].(string) == hwversion["Version"].(string) {
+
+			// need to check measured-component.id.version?
+			version, necessary := attr["version"].(map[string]interface{})
+			if necessary {
+				// need to compare with version in Evidence
+				mcVersion, ok := mc["Version"].(map[string]interface{})
+				if !ok {
+					return result, fmt.Errorf("cannot get version: %#v", mc["Version"])
+				}
+
+				mcVersionVersion, ok := mcVersion["Version"].(string)
+				if !ok {
+					return result, handler.BadEvidence(fmt.Errorf("cannot get version tstr: %#v", mcVersion["Version"]))
+				}
+
+				if mcVersionVersion != version["value"] {
+					allReferenceValueOK = false
+				}
+			}
+
+			// need to check measured-component.measurement?
+			digests, necessary := attr["digests"].([]interface{})
+			if necessary {
+				// need to compare with digest in Evidence
+				digest, ok := digests[0].(string)
+				if !ok {
+					return result, fmt.Errorf("cannot get digest from index 0: %#v", digests)
+				}
+
+				mcMeasurement, ok := mc["Measurement"].(map[string]interface{})
+				if !ok {
+					return result, handler.BadEvidence(fmt.Errorf("measurement not found: %#v", mc))
+				}
+				// json Number is treated as float64?
+				algVal, ok := mcMeasurement["Alg"].(float64)
+				if !ok {
+					return result, handler.BadEvidence(fmt.Errorf("[DEBUG] alg %#v %T", mcMeasurement["Alg"], mcMeasurement["Alg"]))
+				}
+				alg := uint64(algVal)
+				if alg != 1 {
+					return result, handler.BadEvidence(fmt.Errorf("not supported hash algorithm: %v", algVal))
+				}
+				base64Val, ok := mcMeasurement["Val"].(string)
+				if !ok {
+					return result, handler.BadEvidence(fmt.Errorf("digest[Val] is not []byte: %#v", mcMeasurement["Val"]))
+				}
+				comparedDigest := "sha-256;" + base64Val
+
+				if comparedDigest != digest {
+					allReferenceValueOK = false
+				}
+			}
+
+			if allReferenceValueOK {
 				*result.Submods[SchemeName].Status = ear.TrustTierAffirming
-				return result, nil
 			}
+			return result, nil
 		}
 	}
 

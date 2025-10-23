@@ -51,8 +51,16 @@ func (o CorimExtractor) RefValExtractor(
 		/* to be compared values, or reference values */
 		for _, m := range rv.Measurements.Values {
 			if m.Val.Ver != nil {
+				// TODO: CoRIM itself doesn't specify the version is for hardware or software
 				attrs["version"] = m.Val.Ver
 			}
+			if m.Val.Digests != nil {
+				attrs["digests"] = m.Val.Digests
+			}
+			// XXX: no member 'name' in Mval
+			// if m.Val.Name != nil {
+			// 	attrs["name"] = m.Val.Name
+			// }
 		}
 
 		jsonAttrs, err := json.Marshal(attrs)
