@@ -336,7 +336,7 @@ func (s EvidenceHandler) ValidateEvidenceIntegrity(
 
 	err = message.Verify(nil, verifier)
 	if err != nil {
-		return handler.BadEvidence(fmt.Errorf("could not verifies with hard coded key: %v", err))
+		return handler.BadEvidence(fmt.Errorf("could not verifies with key: %#v %w", ecdsaPubKey, err))
 	}
 
 	return nil
