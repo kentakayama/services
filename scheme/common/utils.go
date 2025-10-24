@@ -15,39 +15,6 @@ import (
 	"github.com/veraison/psatoken"
 )
 
-type VersionType struct {
-	Version string
-	/*
-	 * 0: not specified
-	 * 1: multipartnumeric
-	 * 2: multipartnumeric-suffix
-	 * 3: alphanumeric
-	 * 4: decimal
-	 * 16384: semver
-	 */
-	Scheme uint64
-}
-
-type Measurement struct {
-	_ struct{} `cbor:",toarray"`
-	// NOTE: Type is one of coap-content-type
-	Type   int64  `cbor:"0,keyasint"` // position 0
-	Format []byte `cbor:"1,keyasint"` // position 1
-}
-
-type Digest struct {
-	_ struct{} `cbor:",toarray"`
-	// NOTE: not COSE IANA Registry but Named Information, see draft-ietf-rats-corim Digest
-	Alg uint64 `cbor:"0,keyasint"` // position 0
-	Val []byte `cbor:"1,keyasint"` // position 1
-}
-
-type MeasuredComponent struct {
-	Name        string
-	Version     VersionType
-	Measurement Digest
-}
-
 type CcaPlatformWrapper struct {
 	C platform.IClaims
 }
