@@ -204,7 +204,7 @@ func (s EvidenceHandler) AppraiseEvidence(
 			// XXX: only MeasuredComponents are in evidence["measurements"] due to poor implementation
 			switch m.Type {
 			case 600: // TBD1, measured-component
-				if err := mc.FromCBOR(m.Format); err != nil {
+				if err := cbor.Unmarshal(m.Format, &mc); err != nil {
 					return result, handler.BadEvidence(fmt.Errorf("failed to extract measured-component: %#v", m.Format))
 				}
 			default:
