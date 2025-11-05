@@ -41,7 +41,7 @@ require (
 	github.com/veraison/corim v1.1.3-0.20250318170802-c37ac860ac4d
 	github.com/veraison/dice v0.0.1
 	github.com/veraison/ear v1.1.2
-	github.com/veraison/eat v0.0.0-20220117140849-ddaf59d69f53
+	github.com/veraison/eat v0.0.0-20251105185612-2c0e43e22ea9
 	github.com/veraison/parsec v0.2.1-0.20240912163334-0368b9c16228
 	github.com/veraison/psatoken v1.2.1-0.20240912124429-aec3ece7886e
 	go.uber.org/zap v1.27.0
@@ -87,7 +87,7 @@ require (
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/golang/glog v1.2.4 // indirect
-	github.com/golang/protobuf v1.5.4 // indirect
+	github.com/golang/protobuf v1.5.4
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/hashicorp/yamux v0.0.0-20180604194846-3520598351bb // indirect
@@ -154,5 +154,3 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
-
-replace github.com/veraison/eat => ../eat
