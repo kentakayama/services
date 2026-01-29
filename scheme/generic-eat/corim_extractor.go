@@ -3,6 +3,7 @@
 package generic_eat
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -42,11 +43,11 @@ func (o CorimExtractor) RefValExtractor(
 		attrs := map[string]interface{}{}
 
 		/* treated as key to find the reference value */
-		instanceID, err := rv.Environment.Instance.GetUUID()
+		instanceID, err := rv.Environment.Instance.GetUEID()
 		if err != nil {
-			return nil, fmt.Errorf("unable to get instance uuid: %w", err)
+			return nil, fmt.Errorf("unable to get instance ueid: %w", err)
 		}
-		attrs["instance-id"] = instanceID
+		attrs["instance-id"] = base64.StdEncoding.EncodeToString(instanceID)
 
 		/* to be compared values, or reference values */
 		for _, m := range rv.Measurements.Values {
@@ -93,7 +94,7 @@ func (o CorimExtractor) TaExtractor(avk comid.KeyTriple) (*handler.Endorsement, 
 		return nil, fmt.Errorf("AK does not appear to be a PEM key (%T)", akPub.Value)
 	}
 
-	instanceID, err := avk.Environment.Instance.GetUUID()
+	instanceID, err := avk.Environment.Instance.GetUEID()
 	if err != nil {
 		return nil, fmt.Errorf("unable to get instance id: %w", err)
 	}

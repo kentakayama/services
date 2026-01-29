@@ -4,12 +4,13 @@
 package generic_eat
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/url"
 
 	"github.com/fxamacker/cbor/v2"
-	"github.com/google/uuid"
+	"github.com/veraison/eat"
 	"github.com/veraison/go-cose"
 	"github.com/veraison/services/handler"
 	"github.com/veraison/services/log"
@@ -46,12 +47,10 @@ func (s StoreHandler) GetTrustAnchorIDs(token *proto.AttestationToken) ([]string
 	if !ok {
 		return nil, fmt.Errorf("failed to get ueid")
 	}
-	uuidValue, err := uuid.FromBytes(u)
-	if err != nil {
-		return nil, fmt.Errorf("generic-eat requires the ueid value as UUID")
-	}
+	ueidValue := eat.UEID(u)
+
 	// TODO: how to get tenantID from token?
-	lookupKey, err := s.keyToLookupKey("0", uuidValue.String(), "ta")
+	lookupKey, err := s.keyToLookupKey("0", base64.StdEncoding.EncodeToString(ueidValue), "ta")
 	if err != nil {
 		return nil, err
 	}

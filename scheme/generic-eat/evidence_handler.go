@@ -10,7 +10,6 @@ import (
 	"fmt"
 
 	"github.com/fxamacker/cbor/v2"
-	"github.com/google/uuid"
 	"github.com/veraison/ear"
 	"github.com/veraison/eat"
 	"github.com/veraison/go-cose"
@@ -85,10 +84,7 @@ func (s EvidenceHandler) ValidateEvidenceIntegrity(
 	if !ok {
 		return fmt.Errorf("failed to get ueid")
 	}
-	uuidValue, err := uuid.FromBytes(u)
-	if err != nil {
-		return fmt.Errorf("generic-eat requires the ueid value as UUID")
-	}
+	ueidValue := eat.UEID(u)
 
 	/* find trust anchor */
 	akPub := func() string {
@@ -106,7 +102,7 @@ func (s EvidenceHandler) ValidateEvidenceIntegrity(
 			if !ok {
 				continue
 			}
-			if uuidValue.String() == instanceID {
+			if base64.StdEncoding.EncodeToString(ueidValue) == instanceID {
 				akPub, ok := attr["ak-pub"].(string)
 				if !ok {
 					continue
@@ -117,7 +113,7 @@ func (s EvidenceHandler) ValidateEvidenceIntegrity(
 		return ""
 	}()
 	if akPub == "" {
-		return handler.BadEvidence(fmt.Errorf("no trust anchor found for ueid: %s", uuidValue.String()))
+		return handler.BadEvidence(fmt.Errorf("no trust anchor found for ueid: %s", base64.StdEncoding.EncodeToString(ueidValue)))
 	}
 
 	/* verify the signature in the evidence with akPub */
@@ -158,14 +154,11 @@ func (s EvidenceHandler) AppraiseEvidence(
 	if !ok {
 		return result, fmt.Errorf("could not get ueid as string")
 	}
-	ueid, err := base64.StdEncoding.DecodeString(ueidBase64)
+	ueidValue, err := base64.StdEncoding.DecodeString(ueidBase64)
 	if err != nil {
 		return result, fmt.Errorf("could not get ueid as base64 encoded string: %w", err)
 	}
-	ueidUUID, err := uuid.FromBytes(ueid)
-	if err != nil {
-		return result, fmt.Errorf("in generic-eat, ueid must be UUID: %w", err)
-	}
+	ueid := eat.UEID(ueidValue)
 
 	for i, e := range endorsementsStrings {
 		var endorsement handler.Endorsement
@@ -178,7 +171,7 @@ func (s EvidenceHandler) AppraiseEvidence(
 			return result, fmt.Errorf("could not decode attributes: %w", err)
 		}
 
-		if attr["instance-id"] == ueidUUID.String() {
+		if attr["instance-id"] == base64.StdEncoding.EncodeToString(ueid) {
 			/* this set of Reference Values is for this evidence */
 			*result.Submods[SchemeName].Status = ear.TrustTierWarning
 			allReferenceValueOK := true
