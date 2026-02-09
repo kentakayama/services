@@ -69,7 +69,7 @@ func (s EvidenceHandler) ValidateEvidenceIntegrity(
 	trustAnchors []string,
 	endorsements []string,
 ) error {
-	/* extract uuid-typed ueid from token*/
+	/* extract ueid from token*/
 	message := cose.NewSign1Message()
 	err := message.UnmarshalCBOR(token.Data)
 	if err != nil {
@@ -145,7 +145,7 @@ func (s EvidenceHandler) AppraiseEvidence(
 	result := handler.CreateAttestationResult(SchemeName)
 	*result.Submods[SchemeName].Status = ear.TrustTierContraindicated
 
-	/* extract uuid-typed ueid from evidence */
+	/* extract ueid from evidence */
 	evidence := ec.Evidence.AsMap()
 	if evidence["ueid"] == nil {
 		return result, fmt.Errorf("could not get ueid from evidence")

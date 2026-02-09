@@ -14,5 +14,5 @@ var EndorsementMediaTypes = []string{
 }
 
 var EvidenceMediaTypes = []string{
-	`application/eat-cwt; profile="urn:ietf:rfc:rfc9711"`,
+	`application/eat+cwt; eat_profile="urn:ietf:rfc:rfc9711"`,
 }
